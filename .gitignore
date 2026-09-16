@@ -1,0 +1,17 @@
+# Output directories containing large generated files
+outputs/
+
+# Video files
+*.mp4
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Mac OS
+.DS_Store
+
+# Temporary scratch scripts
+scratch_*.py
+updatecheck.txt
+resolutiontricks.txt

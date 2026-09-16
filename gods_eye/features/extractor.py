@@ -14,7 +14,7 @@ class FeatureExtractor:
         
         extraction_options = pycolmap.FeatureExtractionOptions()
         extraction_options.use_gpu = False
-        extraction_options.max_image_size = 1920
+        extraction_options.max_image_size = 3840
         extraction_options.num_threads = 2
         extraction_options.sift.max_num_features = self.config.features
         extraction_options.sift.peak_threshold = 0.002

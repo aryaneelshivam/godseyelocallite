@@ -61,7 +61,10 @@ class PipelineOrchestrator:
         extractor = VideoExtractor(self.video_path, self.config.extraction_fps)
         selector = KeyframeSelector(self.config, self.frames_dir)
         
-        for frame_id, image, timestamp in extractor.extract_frames():
+        total_extracted = extractor.frame_count // extractor.frame_interval
+        from tqdm import tqdm
+        
+        for frame_id, image, timestamp in tqdm(extractor.extract_frames(), total=total_extracted, desc="Extracting Keyframes", unit="frame"):
             selector.process_frame(frame_id, image, timestamp)
             
         extractor.release()

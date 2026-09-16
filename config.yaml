@@ -8,9 +8,9 @@ modes:
     features: 4000
     matching_window: 8
   QUALITY:
-    extraction_fps: 4
-    features: 8000
-    matching_window: 8
+    extraction_fps: 10
+    features: 16000
+    matching_window: 15
 
 default_mode: FAST
 blur_threshold: 0.0
