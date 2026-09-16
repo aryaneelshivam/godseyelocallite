@@ -14,9 +14,11 @@ class FeatureExtractor:
         
         extraction_options = pycolmap.FeatureExtractionOptions()
         extraction_options.use_gpu = False
-        extraction_options.max_image_size = 1024
+        extraction_options.max_image_size = 1920
         extraction_options.num_threads = 2
         extraction_options.sift.max_num_features = self.config.features
+        extraction_options.sift.peak_threshold = 0.002
+        extraction_options.sift.edge_threshold = 16.0
         
         if self.database_path.exists():
             logging.info("Database already exists. Features may already be extracted.")

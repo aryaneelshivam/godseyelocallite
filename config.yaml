@@ -4,9 +4,9 @@ modes:
     features: 2000
     matching_window: 3
   BALANCED:
-    extraction_fps: 2
+    extraction_fps: 5
     features: 4000
-    matching_window: 5
+    matching_window: 8
   QUALITY:
     extraction_fps: 4
     features: 8000
