@@ -1,0 +1,17 @@
+modes:
+  FAST:
+    extraction_fps: 1
+    features: 2000
+    matching_window: 3
+  BALANCED:
+    extraction_fps: 2
+    features: 4000
+    matching_window: 5
+  QUALITY:
+    extraction_fps: 4
+    features: 8000
+    matching_window: 8
+
+default_mode: FAST
+blur_threshold: 0.0
+similarity_threshold: 1.0

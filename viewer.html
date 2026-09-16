@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>God's Eye — Standalone Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --colors-primary: #000000;
+      --colors-ink-deep: #090909;
+      --colors-canvas: #ffffff;
+      --colors-surface-soft: #fafafa;
+      --colors-hairline: #e5e5e5;
+      --colors-ink: #000000;
+      --colors-charcoal: #525252;
+      --colors-body: #737373;
+      --colors-mute: #a3a3a3;
+      
+      --rounded-full: 9999px;
+      --rounded-lg: 12px;
+      --rounded-none: 0px;
+
+      --font-display: -apple-system-ui-serif, ui-sans-serif, system-ui, sans-serif;
+      --font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-code: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    @supports (font-family: ui-rounded) {
+      :root {
+        --font-display: ui-rounded, system-ui, -apple-system, sans-serif;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    
+    body, html {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--colors-canvas);
+      font-family: var(--font-body);
+      color: var(--colors-ink);
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    #viewport { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+    /* Picker Overlay */
+    #picker-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--colors-canvas); z-index: 200;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 24px; text-align: center;
+    }
+    
+    #picker-overlay h1 { 
+      font-family: var(--font-display);
+      font-size: 36px; 
+      font-weight: 500;
+      line-height: 1.11;
+      color: var(--colors-ink); 
+    }
+    
+    #picker-overlay p { 
+      font-size: 16px; 
+      font-weight: 400;
+      color: var(--colors-body); 
+      max-width: 400px; 
+      line-height: 1.5; 
+    }
+    
+    .file-input-wrapper {
+      position: relative; overflow: hidden; display: inline-block;
+      background: var(--colors-primary); color: #ffffff; 
+      padding: 8px 20px; height: 36px;
+      border-radius: var(--rounded-full); 
+      font-weight: 500; font-size: 14px;
+      cursor: pointer; transition: background 0.2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .file-input-wrapper:hover { background: var(--colors-ink-deep); }
+    .file-input-wrapper input[type=file] {
+      font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer;
+    }
+
+    /* HUD */
+    .hud-header {
+      position: absolute; top: 24px; left: 24px; right: 24px;
+      display: flex; justify-content: space-between; align-items: center;
+      z-index: 10; pointer-events: none;
+    }
+    .hud-title {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--colors-canvas);
+      padding: 8px 16px; border-radius: var(--rounded-full); 
+      border: 1px solid var(--colors-hairline);
+      pointer-events: auto;
+    }
+    .hud-badge {
+      color: var(--colors-ink); font-weight: 600; font-size: 14px;
+      font-family: var(--font-display);
+    }
+    .hud-job-id {
+      font-family: var(--font-code);
+      font-size: 14px;
+      color: var(--colors-mute);
+    }
+
+    /* Sidebar / Control Panel */
+    .control-panel {
+      position: absolute; top: 88px; left: 24px; width: 320px;
+      background: var(--colors-canvas);
+      border: 1px solid var(--colors-hairline); 
+      border-radius: var(--rounded-lg);
+      padding: 16px; z-index: 10; display: none; flex-direction: column; gap: 24px;
+    }
+    .panel-section-title {
+      font-family: var(--font-display);
+      font-size: 18px; font-weight: 500; color: var(--colors-ink);
+      margin-bottom: 12px;
+    }
+    
+    /* Right Sidebar Container */
+    .right-sidebar {
+      position: absolute;
+      top: 88px;
+      right: 24px;
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 10;
+      pointer-events: none;
+      max-height: calc(100vh - 112px);
+    }
+    
+    .right-panel {
+      position: relative;
+      top: auto;
+      left: auto;
+      right: auto;
+      width: 100%;
+      display: none;
+      pointer-events: auto;
+      box-sizing: border-box;
+      max-height: calc(100vh - 380px);
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    /* Tree View */
+    .tree-container { font-family: var(--font-code); font-size: 13px; max-height: 280px; overflow-y: auto; }
+    .tree-folder { display: flex; align-items: center; gap: 6px; color: var(--colors-ink); cursor: pointer; padding: 4px 0; }
+    .tree-folder:hover { color: var(--colors-charcoal); }
+    .tree-items { padding-left: 20px; border-left: 1px solid var(--colors-hairline); margin-left: 7px; margin-top: 4px; display: none; }
+    .tree-items.open { display: block; }
+    .tree-item { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; border-radius: 4px; margin-bottom: 2px; }
+    .tree-item:hover { background: var(--colors-surface-soft); }
+    .tree-icon { opacity: 0.5; font-size: 12px; }
+    
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 16px; background: var(--colors-surface-soft);
+      border-radius: var(--rounded-full);
+      font-size: 14px; font-weight: 400; color: var(--colors-ink);
+      cursor: pointer; margin-bottom: 8px;
+    }
+    
+    .toggle-switch {
+      position: relative; width: 36px; height: 20px;
+      background: var(--colors-hairline); border-radius: var(--rounded-full);
+    }
+    .toggle-switch.active { background: var(--colors-primary); }
+    .toggle-switch::after {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 16px; height: 16px; background: #fff; border-radius: var(--rounded-full);
+      transition: transform 0.2s;
+    }
+    .toggle-switch.active::after { transform: translateX(16px); }
+
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-card {
+      background: var(--colors-surface-soft);
+      padding: 12px; border-radius: var(--rounded-lg);
+    }
+    .stat-label { font-size: 12px; color: var(--colors-body); font-weight: 400; }
+    .stat-val { font-family: var(--font-code); font-size: 16px; font-weight: 500; color: var(--colors-ink); margin-top: 4px; }
+
+    /* Buttons */
+    .btn-secondary {
+      background: var(--colors-canvas); color: var(--colors-ink);
+      border: 1px solid var(--colors-hairline);
+      border-radius: var(--rounded-full);
+      padding: 8px 20px; height: 36px;
+      font-size: 14px; font-weight: 500;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      margin-top: 8px;
+    }
+
+    /* Object Card */
+    #object-card {
+      position: absolute; bottom: 24px; right: 24px; width: 320px;
+      background: var(--colors-canvas);
+      border: 1px solid var(--colors-hairline); border-radius: var(--rounded-lg);
+      padding: 24px; z-index: 20; display: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    }
+    .card-title-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+    #card-class { font-family: var(--font-display); font-weight: 500; font-size: 20px; color: var(--colors-ink); text-transform: capitalize; }
+    #card-id { font-family: var(--font-code); font-size: 12px; color: var(--colors-mute); margin-top: 4px; }
+    #card-conf { background: var(--colors-surface-soft); color: var(--colors-ink); padding: 4px 12px; border-radius: var(--rounded-full); font-size: 12px; font-weight: 500; }
+    
+    .card-details { font-size: 14px; color: var(--colors-body); display: grid; gap: 8px; }
+    .card-details-row { display: flex; justify-content: space-between; }
+    .card-details-val { color: var(--colors-ink); font-family: var(--font-code); font-size: 14px; }
+
+    /* Video Preview */
+    #video-panel {
+      position: relative; width: 100%;
+      background: transparent;
+      border: none;
+      padding: 0;
+      z-index: 10; display: none; flex-direction: column; gap: 8px;
+      pointer-events: auto; box-sizing: border-box;
+    }
+    #video-dropzone {
+      width: 100%; height: 140px; border: 1px dashed var(--colors-hairline);
+      background: var(--colors-canvas);
+      border-radius: var(--rounded-lg); display: flex; align-items: center; justify-content: center;
+      color: var(--colors-mute); font-size: 13px; cursor: pointer; transition: 0.2s;
+      text-align: center; padding: 12px; box-sizing: border-box;
+    }
+    #video-dropzone.dragover { border-color: var(--colors-ink); color: var(--colors-ink); background: var(--colors-surface-soft); }
+    #reference-video { width: 100%; border-radius: var(--rounded-lg); display: none; outline: none; background: #000; max-height: 200px; }
+
+
+    /* Loading */
+    #loading {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--colors-canvas); display: none; flex-direction: column;
+      align-items: center; justify-content: center; z-index: 100; gap: 16px;
+    }
+    .spinner {
+      width: 32px; height: 32px; border: 2px solid var(--colors-hairline);
+      border-top-color: var(--colors-primary); border-radius: var(--rounded-full); animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-msg { font-size: 16px; color: var(--colors-body); }
+
+    /* Tabs */
+    .tabs-container {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      gap: 8px;
+      background: var(--colors-canvas);
+      padding: 8px 12px;
+      border-radius: var(--rounded-lg);
+      border: 1px solid var(--colors-hairline);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      z-index: 100;
+      max-width: 60%;
+      overflow-x: auto;
+    }
+
+    .tabs-container::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .tabs-container::-webkit-scrollbar-thumb {
+      background: var(--colors-hairline);
+      border-radius: 4px;
+    }
+
+    .tab {
+      background: var(--colors-surface-soft);
+      border: 1px solid transparent;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: var(--font-code);
+      color: var(--colors-body);
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab:hover {
+      background: var(--colors-hairline);
+      color: var(--colors-ink);
+    }
+
+    .tab.active {
+      background: var(--colors-primary);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Folder Picker Overlay -->
+  <div id="picker-overlay">
+    <h1>God's Eye</h1>
+    <p>Select a generated output folder to load the 3D scene locally.</p>
+    <div class="file-input-wrapper">
+      <span>Choose Folder</span>
+      <input type="file" id="folder-input" webkitdirectory directory multiple />
+    </div>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loading-msg">Parsing local files...</div>
+  </div>
+
+  <div class="hud-header">
+    <div class="hud-title">
+      <div class="hud-badge">God's Eye</div>
+      <div class="hud-job-id" id="job-id-display">LOCAL FOLDER</div>
+    </div>
+  </div>
+
+  <div class="control-panel" id="main-panel">
+    <div>
+      <div class="panel-section-title">Stats</div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Vertices</div>
+          <div class="stat-val" id="stat-vertices">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Faces</div>
+          <div class="stat-val" id="stat-faces">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Objects</div>
+          <div class="stat-val" id="stat-objects">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Cameras</div>
+          <div class="stat-val" id="stat-cameras">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-section-title">Layers</div>
+      <div class="toggle-group">
+        <div class="toggle-row" onclick="toggleLayer('pointcloud')">
+          <span>Sparse Pointcloud</span>
+          <div class="toggle-switch active" id="toggle-pointcloud"></div>
+        </div>
+        <div class="toggle-row" onclick="toggleSplatting()">
+          <span>Soft Splatting</span>
+          <div class="toggle-switch active" id="toggle-splatting"></div>
+        </div>
+        <div class="toggle-row" onclick="toggleLayer('cameras')">
+          <span>Camera Trajectory</span>
+          <div class="toggle-switch active" id="toggle-cameras"></div>
+        </div>
+        <div class="toggle-row" onclick="toggleLayer('grid')">
+          <span>Environment Grid</span>
+          <div class="toggle-switch active" id="toggle-grid"></div>
+        </div>
+        <!-- Semantic objects will be implemented in future phase -->
+        <div class="toggle-row" onclick="toggleLayer('cuboids')" style="opacity: 0.5; cursor: not-allowed;">
+          <span>Semantic Objects (Soon)</span>
+          <div class="toggle-switch" id="toggle-cuboids"></div>
+        </div>
+      </div>
+    </div>
+    
+    <button class="btn-secondary" onclick="resetCamera()">Reset Camera</button>
+  </div>
+
+  <div class="right-sidebar">
+    <div id="video-panel">
+      <div class="panel-section-title" style="font-size: 14px; margin-bottom: 4px;">Reference Video</div>
+      <div id="video-dropzone">Drop video file here (or click)</div>
+      <video id="reference-video" controls loop muted playsinline></video>
+    </div>
+
+    <!-- Tree will be enabled in next phase -->
+    <div class="control-panel right-panel" id="object-tree-panel">
+      <div class="panel-section-title">Scene Graph</div>
+      <div id="object-tree-container" class="tree-container">
+        <div style="font-size: 13px; color: var(--colors-mute);">No objects loaded</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="viewport"></div>
+
+  <!-- Job Tabs -->
+  <div class="tabs-container" id="job-tabs"></div>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TrackballControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
+
+  <script>
+    let scene, camera, renderer, controls;
+    let pointcloudGroup, cameraGroup, gridHelper, cuboidGroup;
+    let basePointSize = 0.1;
+    let splatTexture = null;
+    let useSplatting = true;
+    
+    const layers = { pointcloud: true, cameras: true, grid: true, cuboids: false };
+
+    // Setup ThreeJS
+    function initThree() {
+      const container = document.getElementById('viewport');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xffffff); // canvas white
+      scene.fog = new THREE.FogExp2(0xffffff, 0.005);
+
+      camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 2000);
+      camera.position.set(0, -40, 30);
+      camera.up.set(0, 0, 1);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.0;
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.TrackballControls(camera, renderer.domElement);
+      controls.rotateSpeed = 4.0;
+      controls.zoomSpeed = 1.2;
+      controls.panSpeed = 0.8;
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.0);
+      dirLight1.position.set(50, -50, 100);
+      scene.add(dirLight1);
+
+      // Soft gray grid
+      gridHelper = new THREE.GridHelper(100, 50, 0xe5e5e5, 0xfafafa);
+      gridHelper.rotation.x = Math.PI / 2;
+      scene.add(gridHelper);
+
+      pointcloudGroup = new THREE.Group();
+      cameraGroup = new THREE.Group();
+      cuboidGroup = new THREE.Group();
+      
+      scene.add(pointcloudGroup);
+      scene.add(cameraGroup);
+      scene.add(cuboidGroup);
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      animate();
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    function toggleLayer(layer) {
+      if (layer === 'cuboids') return; // Not implemented yet
+      layers[layer] = !layers[layer];
+      const btn = document.getElementById(`toggle-${layer}`);
+      if (btn) {
+        if (layers[layer]) btn.classList.add('active');
+        else btn.classList.remove('active');
+      }
+
+      if (layer === 'pointcloud') pointcloudGroup.visible = layers.pointcloud;
+      if (layer === 'cameras') cameraGroup.visible = layers.cameras;
+      if (layer === 'grid') gridHelper.visible = layers.grid;
+    }
+
+    function toggleSplatting() {
+      useSplatting = !useSplatting;
+      const btn = document.getElementById('toggle-splatting');
+      if (btn) {
+        if (useSplatting) btn.classList.add('active');
+        else btn.classList.remove('active');
+      }
+      
+      pointcloudGroup.traverse((child) => {
+        if (child.isPoints) {
+          if (useSplatting) {
+            child.material.size = basePointSize * 3.5;
+            child.material.map = splatTexture;
+            child.material.alphaTest = 0.05;
+            child.material.transparent = true;
+            child.material.depthWrite = false;
+          } else {
+            child.material.size = basePointSize;
+            child.material.map = null;
+            child.material.alphaTest = 0;
+            child.material.transparent = false;
+            child.material.depthWrite = true;
+          }
+          child.material.needsUpdate = true;
+        }
+      });
+    }
+
+    function resetCamera() { controls.reset(); }
+
+    function updateLoading(msg) {
+      document.getElementById('loading-msg').textContent = msg;
+    }
+
+    // Local Directory Handling
+    let loadedJobs = {};
+
+    document.getElementById('folder-input').addEventListener('change', async (e) => {
+      const allFiles = Array.from(e.target.files);
+      if (allFiles.length === 0) return;
+
+      document.getElementById('picker-overlay').style.display = 'none';
+      document.getElementById('loading').style.display = 'flex';
+      document.getElementById('main-panel').style.display = 'flex';
+      document.getElementById('video-panel').style.display = 'flex';
+
+      // Group files by job ID (support for batch loading)
+      loadedJobs = {};
+      allFiles.forEach(f => {
+         const parts = f.webkitRelativePath.split('/');
+         if (parts.length < 2) return;
+         
+         let jobId;
+         if (parts.length >= 3 && parts[0].toLowerCase() === 'outputs') {
+             jobId = parts[1];
+         } else {
+             jobId = parts[0];
+         }
+         
+         if (!loadedJobs[jobId]) loadedJobs[jobId] = [];
+         loadedJobs[jobId].push(f);
+      });
+
+      const jobIds = Object.keys(loadedJobs).sort((a, b) => b.localeCompare(a));
+      
+      // Setup tabs
+      const tabsContainer = document.getElementById('job-tabs');
+      tabsContainer.innerHTML = '';
+      if (jobIds.length > 1) {
+         tabsContainer.style.display = 'flex';
+         jobIds.forEach(jobId => {
+            const tab = document.createElement('div');
+            tab.className = 'tab';
+            tab.id = `tab-${jobId}`;
+            tab.textContent = jobId.length > 18 ? jobId.substring(0, 15) + '...' : jobId;
+            tab.title = jobId;
+            tab.onclick = () => loadJob(jobId);
+            tabsContainer.appendChild(tab);
+         });
+      }
+
+      // Load first job
+      if (jobIds.length > 0) {
+         loadJob(jobIds[0]);
+      } else {
+         document.getElementById('loading').style.display = 'none';
+      }
+    });
+
+    async function loadJob(jobId) {
+      document.getElementById('loading').style.display = 'flex';
+      
+      // Update active tab
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      const activeTab = document.getElementById(`tab-${jobId}`);
+      if (activeTab) activeTab.classList.add('active');
+
+      document.getElementById('job-id-display').textContent = jobId;
+
+      const files = loadedJobs[jobId];
+      if (!files) return;
+
+      // Clear current scene
+      pointcloudGroup.clear();
+      cameraGroup.clear();
+      cuboidGroup.clear();
+
+      document.getElementById('stat-vertices').textContent = '--';
+      document.getElementById('stat-faces').textContent = '--';
+      document.getElementById('stat-cameras').textContent = '--';
+
+      const getFile = (name) => files.find(f => f.name === name);
+      
+      // Our pipeline produces scene.ply or scene_sparse.ply and camera_trajectory.json
+      const plyFile = getFile('scene.ply') || getFile('scene_sparse.ply');
+      const trajFile = getFile('camera_trajectory.json');
+
+      let center = new THREE.Vector3(0, 0, 0);
+
+      // 1. Load PLY Pointcloud
+      if (plyFile) {
+        updateLoading(`Loading ${plyFile.name}...`);
+        const url = URL.createObjectURL(plyFile);
+        
+        await new Promise((resolve) => {
+          const loader = new THREE.PLYLoader();
+          loader.load(url, (geom) => {
+            geom.computeBoundingBox();
+            center = geom.boundingBox.getCenter(new THREE.Vector3());
+            const size = geom.boundingBox.getSize(new THREE.Vector3());
+            
+            // Log stats
+            document.getElementById('stat-vertices').textContent = geom.attributes.position.count.toLocaleString();
+            
+            // Calculate a point size relative to the scene size
+            const maxDim = Math.max(size.x, size.y, size.z);
+            basePointSize = maxDim / 1000.0;
+
+            // Generate a soft radial gradient texture for Point Splatting
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const context = canvas.getContext('2d');
+            const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.2, 'rgba(255,255,255,1)');
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 64, 64);
+            splatTexture = new THREE.CanvasTexture(canvas);
+
+            const material = new THREE.PointsMaterial({ 
+              size: useSplatting ? basePointSize * 3.5 : basePointSize,
+              vertexColors: geom.hasAttribute('color'),
+              map: useSplatting ? splatTexture : null,
+              transparent: useSplatting,
+              alphaTest: useSplatting ? 0.05 : 0,
+              depthWrite: !useSplatting
+            });
+            const points = new THREE.Points(geom, material);
+            
+            // Auto center the camera based on pointcloud bounds
+            camera.position.set(center.x, center.y - maxDim, center.z + maxDim * 0.5);
+            controls.target.copy(center);
+            
+            pointcloudGroup.add(points);
+            URL.revokeObjectURL(url);
+            resolve();
+          });
+        });
+      }
+
+      // 2. Load Camera Trajectory
+      if (trajFile) {
+        updateLoading('Loading camera trajectory...');
+        try {
+          const text = await trajFile.text();
+          const trajData = JSON.parse(text);
+          
+          if (trajData.cameras && trajData.cameras.length > 0) {
+            document.getElementById('stat-cameras').textContent = trajData.cameras.length;
+            
+            // Draw cameras
+            trajData.cameras.forEach(cam => {
+              const { center, rotation } = cam;
+              
+              // Create a frustum shape for the camera
+              const geometry = new THREE.BufferGeometry();
+              
+              // Camera shape vertices (pyramid/frustum)
+              // Size of the camera icon
+              const s = 0.5;
+              const vertices = new Float32Array([
+                0, 0, 0,  // Apex
+                -s, -s, s, // Base corners
+                s, -s, s,
+                s, s, s,
+                -s, s, s,
+              ]);
+              
+              // Lines connecting vertices
+              const indices = [
+                0, 1, 0, 2, 0, 3, 0, 4, // Lines from apex to base
+                1, 2, 2, 3, 3, 4, 4, 1  // Base rectangle
+              ];
+              
+              geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+              geometry.setIndex(indices);
+              
+              const material = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+              const line = new THREE.LineSegments(geometry, material);
+              
+              // Apply rotation
+              const rotMatrix = new THREE.Matrix4();
+              // Flatten the 3x3 array to a 1D array for Matrix4
+              // Note: Pycolmap/Three.js might have different column/row major formats, 
+              // but we map it directly based on standard convention
+              const r = rotation; 
+              rotMatrix.set(
+                r[0][0], r[0][1], r[0][2], 0,
+                r[1][0], r[1][1], r[1][2], 0,
+                r[2][0], r[2][1], r[2][2], 0,
+                0, 0, 0, 1
+              );
+              
+              line.position.set(center[0], center[1], center[2]);
+              line.rotation.setFromRotationMatrix(rotMatrix);
+              
+              cameraGroup.add(line);
+            });
+          }
+        } catch (err) {
+          console.error("Error parsing camera trajectory", err);
+        }
+      }
+
+      controls.update();
+      document.getElementById('loading').style.display = 'none';
+    }
+
+    // Video Dropzone Handling
+    const dropzone = document.getElementById('video-dropzone');
+    const refVideo = document.getElementById('reference-video');
+
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    
+    const handleVideoFile = (file) => {
+      if (file && file.type.startsWith('video/')) {
+        const url = URL.createObjectURL(file);
+        refVideo.src = url;
+        dropzone.style.display = 'none';
+        refVideo.style.display = 'block';
+        refVideo.play();
+      }
+    };
+
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      handleVideoFile(e.dataTransfer.files[0]);
+    });
+
+    dropzone.addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'video/*';
+      input.onchange = (e) => handleVideoFile(e.target.files[0]);
+      input.click();
+    });
+
+    initThree();
+  </script>
+</body>
+</html>
