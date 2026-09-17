@@ -8,6 +8,7 @@ from gods_eye.video.keyframes import KeyframeSelector
 from gods_eye.features.extractor import FeatureExtractor
 from gods_eye.features.matcher import FeatureMatcher
 from gods_eye.reconstruction.sfm import SparseReconstructor
+from gods_eye.reconstruction.dense import MonocularDenseReconstructor
 from gods_eye.reconstruction.camera import export_camera_trajectory
 
 class PipelineOrchestrator:
@@ -28,27 +29,49 @@ class PipelineOrchestrator:
             d.mkdir(parents=True, exist_ok=True)
             
     def run(self):
-        print(f"[1/8] Extracting frames and [2/8] Selecting keyframes ...")
-        self._extract_and_select_keyframes()
+        from tqdm import tqdm
         
-        print(f"[3/8] Extracting features ...")
-        db_path = self._extract_features()
+        print("Starting God's Eye Pipeline...")
         
-        print(f"[4/8] Sequential matching ...")
-        self._match_features(db_path)
-        
-        print(f"[5/8] Sparse reconstruction ...")
-        reconstruction, ply_path = self._reconstruct(db_path)
-        
-        if reconstruction:
-            print(f"-> Exporting camera trajectory ...")
-            export_camera_trajectory(reconstruction, self.camera_traj_dir / "camera_trajectory.json")
+        with tqdm(total=6, desc="Overall Pipeline", position=0, leave=True) as pbar:
+            pbar.set_postfix(step="Keyframe Extraction")
+            self._extract_and_select_keyframes()
+            pbar.update(1)
             
-            # Copy or move the sparse ply to the scene directory as the final representation for Phase 1
-            import shutil
-            final_scene_path = self.scene_dir / "scene.ply"
-            shutil.copy(ply_path, final_scene_path)
-            print(f"-> Final sparse scene saved to {final_scene_path}")
+            pbar.set_postfix(step="SIFT Feature Extraction")
+            db_path = self._extract_features()
+            pbar.update(1)
+            
+            pbar.set_postfix(step="Sequential Matching")
+            self._match_features(db_path)
+            pbar.update(1)
+            
+            pbar.set_postfix(step="Sparse Reconstruction")
+            reconstruction, ply_path = self._reconstruct(db_path)
+            pbar.update(1)
+            
+            pbar.set_postfix(step="AI Dense Reconstruction")
+            dense_ply_path = None
+            if reconstruction:
+                dense_reconstructor = MonocularDenseReconstructor(db_path, self.frames_dir, self.reconstruction_dir, self.config)
+                dense_ply_path = dense_reconstructor.run()
+            pbar.update(1)
+            
+            pbar.set_postfix(step="Exporting Artifacts")
+            if reconstruction:
+                export_camera_trajectory(reconstruction, self.camera_traj_dir / "camera_trajectory.json")
+                import shutil
+                final_scene_path = self.scene_dir / "scene.ply"
+                
+                # If dense reconstruction succeeded, export the dense PLY, otherwise fallback to sparse
+                if dense_ply_path and dense_ply_path.exists():
+                    shutil.copy(dense_ply_path, final_scene_path)
+                    print(f"\n-> Final DENSE scene saved to {final_scene_path}")
+                else:
+                    shutil.copy(ply_path, final_scene_path)
+                    print(f"\n-> Final SPARSE scene saved to {final_scene_path}")
+                    
+            pbar.update(1)
             
         print("Pipeline Complete!")
 
@@ -64,7 +87,7 @@ class PipelineOrchestrator:
         total_extracted = extractor.frame_count // extractor.frame_interval
         from tqdm import tqdm
         
-        for frame_id, image, timestamp in tqdm(extractor.extract_frames(), total=total_extracted, desc="Extracting Keyframes", unit="frame"):
+        for frame_id, image, timestamp in tqdm(extractor.extract_frames(), total=total_extracted, desc="Extracting Keyframes", unit="frame", position=1, leave=False):
             selector.process_frame(frame_id, image, timestamp)
             
         extractor.release()

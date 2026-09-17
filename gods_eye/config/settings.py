@@ -10,6 +10,7 @@ class Config:
     matching_window: int
     blur_threshold: float
     similarity_threshold: float
+    max_image_size: int = 3840
 
 def load_config(mode: str = "FAST", config_path: str = "config.yaml") -> Config:
     path = Path(config_path)
