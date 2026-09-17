@@ -631,21 +631,41 @@
             context.fillRect(0, 0, 64, 64);
             splatTexture = new THREE.CanvasTexture(canvas);
 
-            const material = new THREE.PointsMaterial({ 
-              size: useSplatting ? basePointSize * 3.5 : basePointSize,
-              vertexColors: geom.hasAttribute('color'),
-              map: useSplatting ? splatTexture : null,
-              transparent: useSplatting,
-              alphaTest: useSplatting ? 0.05 : 0,
-              depthWrite: !useSplatting
-            });
-            const points = new THREE.Points(geom, material);
+            // If the PLY has faces, it's a solid mesh!
+            if (geom.index) {
+                geom.computeVertexNormals();
+                const material = new THREE.MeshStandardMaterial({
+                    vertexColors: geom.hasAttribute('color'),
+                    side: THREE.DoubleSide,
+                    roughness: 0.8
+                });
+                const mesh = new THREE.Mesh(geom, material);
+                pointcloudGroup.add(mesh);
+                
+                // Add lights since solid meshes require lighting to see depth
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                dirLight.position.set(0, maxDim, 0);
+                scene.add(ambientLight);
+                scene.add(dirLight);
+            } else {
+                // Otherwise it's just a raw Point Cloud
+                const material = new THREE.PointsMaterial({ 
+                  size: useSplatting ? basePointSize * 3.5 : basePointSize,
+                  vertexColors: geom.hasAttribute('color'),
+                  map: useSplatting ? splatTexture : null,
+                  transparent: useSplatting,
+                  alphaTest: useSplatting ? 0.05 : 0,
+                  depthWrite: !useSplatting
+                });
+                const points = new THREE.Points(geom, material);
+                pointcloudGroup.add(points);
+            }
             
-            // Auto center the camera based on pointcloud bounds
+            // Auto center the camera based on bounds
             camera.position.set(center.x, center.y - maxDim, center.z + maxDim * 0.5);
             controls.target.copy(center);
             
-            pointcloudGroup.add(points);
             URL.revokeObjectURL(url);
             resolve();
           });

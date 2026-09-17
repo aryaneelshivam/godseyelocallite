@@ -87,7 +87,25 @@ def main():
     logging.info(f"Loaded config mode: {args.mode} (Resolution limit: {args.resolution}px)")
     
     orchestrator = PipelineOrchestrator(config, args.input, args.output)
+    
+    # Prompt for meshing
+    if not args.input:
+        print("\nDo you want to generate a photorealistic solid Mesh (Poisson)?")
+        print("This takes a few minutes, but creates a solid video-game style surface.")
+        ans = input("Enable Poisson Meshing? (y/n, default n): ").strip().lower()
+        run_mesh = ans == 'y'
+    else:
+        run_mesh = False
+        
     orchestrator.run()
+    
+    if run_mesh:
+        import subprocess
+        print("\n=== Running Poisson Surface Reconstruction ===")
+        mesh_in = orchestrator.scene_dir / "scene.ply"
+        mesh_out = orchestrator.scene_dir / "scene_mesh.ply"
+        subprocess.run(["python3", "-m", "gods_eye.reconstruction.mesh", "--input", str(mesh_in), "--output", str(mesh_out)])
+        print("Meshing Complete!")
 
 if __name__ == "__main__":
     main()
