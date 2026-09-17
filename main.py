@@ -49,6 +49,12 @@ def interactive_prompt(args):
     res_map = {"1": 1024, "2": 1920, "3": 3840}
     args.resolution = res_map.get(val, 3840)
     
+    # 4. Ask for meshing
+    print("\nDo you want to generate a photorealistic solid Mesh (Poisson)?")
+    print("This takes a few minutes, but creates a solid video-game style surface.")
+    ans = input("Enable Poisson Meshing? (y/n, default n): ").strip().lower()
+    args.run_mesh = (ans == 'y')
+    
     print("\n")
     return args
 
@@ -59,8 +65,12 @@ def main():
     parser.add_argument("--mode", type=str, choices=["FAST", "BALANCED", "QUALITY"], help="Reconstruction quality mode")
     parser.add_argument("--resolution", type=int, help="Max image resolution for SIFT")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--mesh", action="store_true", help="Run Poisson meshing after dense reconstruction")
     
     args = parser.parse_args()
+    
+    # Store CLI mesh flag
+    args.run_mesh = args.mesh
     
     # Enter interactive mode if no input is provided
     if not args.input:
@@ -88,18 +98,9 @@ def main():
     
     orchestrator = PipelineOrchestrator(config, args.input, args.output)
     
-    # Prompt for meshing
-    if not args.input:
-        print("\nDo you want to generate a photorealistic solid Mesh (Poisson)?")
-        print("This takes a few minutes, but creates a solid video-game style surface.")
-        ans = input("Enable Poisson Meshing? (y/n, default n): ").strip().lower()
-        run_mesh = ans == 'y'
-    else:
-        run_mesh = False
-        
     orchestrator.run()
     
-    if run_mesh:
+    if getattr(args, 'run_mesh', False):
         import subprocess
         print("\n=== Running Poisson Surface Reconstruction ===")
         mesh_in = orchestrator.scene_dir / "scene.ply"
