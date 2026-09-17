@@ -355,7 +355,7 @@
         </div>
         <div class="toggle-row" onclick="toggleSplatting()">
           <span>Soft Splatting</span>
-          <div class="toggle-switch active" id="toggle-splatting"></div>
+          <div class="toggle-switch" id="toggle-splatting"></div>
         </div>
         <div class="toggle-row" onclick="toggleLayer('cameras')">
           <span>Camera Trajectory</span>
@@ -407,7 +407,7 @@
     let pointcloudGroup, cameraGroup, gridHelper, cuboidGroup;
     let basePointSize = 0.1;
     let splatTexture = null;
-    let useSplatting = true;
+    let useSplatting = false;
     
     const layers = { pointcloud: true, cameras: true, grid: true, cuboids: false };
 
