@@ -51,10 +51,22 @@ class PipelineOrchestrator:
             pbar.update(1)
             
             pbar.set_postfix(step="AI Dense Reconstruction")
-            dense_ply_path = None
+            dense_ply_path = self.reconstruction_dir / "scene_dense.ply"
             if reconstruction:
-                dense_reconstructor = MonocularDenseReconstructor(db_path, self.frames_dir, self.reconstruction_dir, self.config)
-                dense_ply_path = dense_reconstructor.run()
+                import subprocess
+                import sys
+                cmd = [
+                    sys.executable, "-m", "gods_eye.reconstruction.dense",
+                    "--db_path", str(db_path),
+                    "--frames_dir", str(self.frames_dir),
+                    "--output_dir", str(self.reconstruction_dir),
+                    "--resolution", str(self.config.max_image_size)
+                ]
+                try:
+                    subprocess.run(cmd, check=True)
+                except subprocess.CalledProcessError:
+                    print("\n-> AI Dense Reconstruction failed. Falling back to sparse.")
+                    dense_ply_path = None
             pbar.update(1)
             
             pbar.set_postfix(step="Exporting Artifacts")

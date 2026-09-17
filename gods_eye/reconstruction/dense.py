@@ -1,6 +1,13 @@
 import logging
 from pathlib import Path
 import numpy as np
+
+try:
+    import torch
+    from transformers import pipeline
+except ImportError:
+    pass
+
 import pycolmap
 import scipy.stats
 from tqdm import tqdm
@@ -14,10 +21,7 @@ class MonocularDenseReconstructor:
         self.reconstruction_dir = output_dir
         
     def run(self):
-        try:
-            import torch
-            from transformers import pipeline
-        except ImportError:
+        if "torch" not in globals():
             logging.error("Dense reconstruction requires torch and transformers.")
             return None
             
@@ -54,11 +58,13 @@ class MonocularDenseReconstructor:
             
             # 1. Predict Monocular Depth
             depth_output = depth_estimator(pil_img)
-            # Depth Anything outputs relative depth (disparity map essentially)
-            mono_disp = np.array(depth_output["depth"])
-            mono_disp = np.clip(mono_disp, 1e-6, None)
             
-            # Inverse it to get relative depth
+            # Depth-Anything outputs relative disparity (0-255, where brighter = closer)
+            # We normalize to 0-1 and strictly bound to prevent extreme outlier 1/x spikes
+            mono_disp = np.array(depth_output["depth"], dtype=float) / 255.0
+            mono_disp = np.clip(mono_disp, 0.05, 1.0) # Max inverse depth multiplier is 20x
+            
+            # Convert disparity to true relative depth
             mono_depth = 1.0 / mono_disp
             
             # 2. Extract Sparse Points for Alignment
@@ -100,7 +106,7 @@ class MonocularDenseReconstructor:
             s, c = res.slope, res.intercept
             
             # Prevent negative or extremely broken scales
-            if s < 0:
+            if s <= 0:
                 continue
                 
             metric_depth = s * mono_depth + c
@@ -114,15 +120,10 @@ class MonocularDenseReconstructor:
             u_cam = u * (camera.width / W)
             v_cam = v * (camera.height / H)
                 
-            focal_x = camera.params[0]
-            if camera.model_id in [1, 3]: # Simple Pinhole, Simple Radial
-                focal_y = focal_x
-                cx = camera.params[1]
-                cy = camera.params[2]
-            else:
-                focal_y = camera.params[1]
-                cx = camera.params[2]
-                cy = camera.params[3]
+            focal_x = camera.focal_length_x
+            focal_y = camera.focal_length_y
+            cx = camera.principal_point_x
+            cy = camera.principal_point_y
                 
             X = (u_cam - cx) * Z / focal_x
             Y = (v_cam - cy) * Z / focal_y
@@ -170,3 +171,21 @@ class MonocularDenseReconstructor:
                 f.write(f"{p[0]} {p[1]} {p[2]} {c[0]} {c[1]} {c[2]}\n")
                 
         return out_ply
+
+if __name__ == "__main__":
+    import argparse
+    from gods_eye.config.settings import Config
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--db_path", type=str, required=True)
+    parser.add_argument("--frames_dir", type=str, required=True)
+    parser.add_argument("--output_dir", type=str, required=True)
+    parser.add_argument("--resolution", type=int, required=True)
+    args = parser.parse_args()
+    
+    config = Config(extraction_fps=1, features=2000, matching_window=3, blur_threshold=100.0, similarity_threshold=0.85, max_image_size=args.resolution)
+    
+    reconstructor = MonocularDenseReconstructor(
+        Path(args.db_path), Path(args.frames_dir), Path(args.output_dir), config
+    )
+    reconstructor.run()

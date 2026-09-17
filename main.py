@@ -71,7 +71,14 @@ def main():
     if not args.resolution:
         args.resolution = 3840
         
-    level = logging.DEBUG if args.debug else logging.INFO
+    import pycolmap
+    if args.debug:
+        level = logging.DEBUG
+        pycolmap.logging.minloglevel = 0
+    else:
+        level = logging.INFO
+        pycolmap.logging.minloglevel = 2
+        
     logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s')
     
     config = load_config(mode=args.mode)
