@@ -49,7 +49,7 @@ You will be prompted to:
 For automation, you can pass the arguments directly:
 
 ```bash
-python3 main.py --input sample.mp4 --mode FAST --resolution 1920
+python3 main.py --input sample.mp4 --mode FAST --resolution 1920 --mesh
 ```
 
 ### Advanced Settings
@@ -65,8 +65,9 @@ When you run the pipeline, it executes the following steps sequentially:
 2. **SIFT Feature Extraction:** Finds thousands of unique visual anchor points in every image.
 3. **Sequential Matching:** Tracks how those anchor points move across consecutive frames to understand the drone's flight path.
 4. **Sparse Reconstruction (Pycolmap):** Calculates the exact 3D camera poses and triangulates a sparse point cloud.
-5. **AI Dense Reconstruction:** *(Optional)* Uses an AI depth model (`Depth-Anything-V2`) to predict per-pixel depth and generate a massive, dense point cloud.
+5. **AI Dense Reconstruction:** Uses an AI depth model (`Depth-Anything-V2`) to predict per-pixel depth and generate a massive, dense point cloud.
 6. **Artifact Export:** Saves the final models to the `outputs/<video>/scene/` directory.
+7. **Poisson Surface Meshing (Optional):** Uses Open3D to calculate surface normals and wrap a solid video-game style mesh (`scene_mesh.ply`) over the dense point cloud.
 
 ---
 
@@ -75,7 +76,8 @@ When you run the pipeline, it executes the following steps sequentially:
 To view your reconstructed environment:
 1. Double-click the `viewer.html` file to open it in your browser (Chrome/Safari).
 2. Open your `outputs/<video_name>/scene/` folder.
-3. Drag and drop the `scene.ply` (or `scene_sparse.ply`) file directly into the browser window.
+3. Drag and drop the `scene.ply` (dense points), `scene_sparse.ply` (sparse points), or `scene_mesh.ply` (solid mesh) file directly into the browser window.
+   - *Note: The viewer will automatically detect if you loaded a solid mesh and activate 3D studio lighting!*
 4. Use your mouse to rotate and zoom around your 3D drone flight!
 
 ---
